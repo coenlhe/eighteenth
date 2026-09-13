@@ -33,3 +33,15 @@ export async function upsertRsvp(data: {
   const result = await pool.query(query, values);
   return result.rows[0];
 }
+
+export function toCsv(rsvps: Rsvp[]): string {
+  const headers = ["Guest ID", "Name", "Status", "Notes", "Created At"];
+  const rows = rsvps.map((r) => [
+    r.guestId,
+    `"${(r.name || "").replace(/"/g, '""')}"`,
+    r.status,
+    `"${(r.notes || "").replace(/"/g, '""')}"`,
+    r.createdAt,
+  ]);
+  return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+}
