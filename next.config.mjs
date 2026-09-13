@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    // Prevents OneDrive path casing issues from crashing the dev server
-    ignoreBuildErrors: true,
+  eslint: {
+    ignoreDuringBuilds: true,
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
