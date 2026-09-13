@@ -34,6 +34,19 @@ export async function upsertRsvp(data: {
   return result.rows[0];
 }
 
+export async function setRsvpStatus(guestId: string, status: RsvpStatus): Promise<Rsvp | null> {
+  const result = await pool.query(
+    'UPDATE rsvps SET status = $1 WHERE guest_id = $2 RETURNING guest_id as "guestId", name, status, notes, created_at as "createdAt"',
+    [status, guestId]
+  );
+  return result.rows[0] || null;
+}
+
+export async function deleteRsvp(guestId: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM rsvps WHERE guest_id = $1', [guestId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
 export function toCsv(rsvps: Rsvp[]): string {
   const headers = ["Guest ID", "Name", "Status", "Notes", "Created At"];
   const rows = rsvps.map((r) => [
