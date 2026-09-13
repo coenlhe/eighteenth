@@ -3,10 +3,8 @@ import path from "path";
 import { nanoid } from "nanoid";
 import sharp from "sharp";
 import { fileTypeFromBuffer } from "file-type";
-import { readJson, updateJson } from "./db";
+import { pool } from "./db";
 import type { Photo } from "./types";
-
-const FILE = "photos.json";
 
 const FULL_DIR = path.join(process.cwd(), "public", "uploads", "full");
 const THUMB_DIR = path.join(process.cwd(), "public", "uploads", "thumbs");
@@ -18,17 +16,15 @@ export const UPLOAD_LIMITS = {
 };
 
 export async function getAllPhotos(): Promise<Photo[]> {
-  const photos = await readJson<Photo[]>(FILE, []);
-  // Newest first.
-  return [...photos].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const result = await pool.query(
+    "SELECT id, filename, thumb_filename as \"thumbFilename\", caption, uploader_name as \"uploaderName\", uploader_guest_id as \"uploaderGuestId\", width, height, size_bytes as \"sizeBytes\", created_at as \"createdAt\" FROM photos ORDER BY created_at DESC"
+  );
+  return result.rows;
 }
 
 export async function deletePhoto(id: string): Promise<boolean> {
-  let removed: Photo | undefined;
-  await updateJson<Photo[]>(FILE, [], (all) => {
-    removed = all.find((p) => p.id === id);
-    return all.filter((p) => p.id !== id);
-  });
+  const res = await pool.query("DELETE FROM photos WHERE id = $1 RETURNING filename, thumb_filename as \"thumbFilename\"", [id]);
+  const removed = res.rows[0];
   if (!removed) return false;
 
   await Promise.allSettled([
@@ -48,11 +44,6 @@ export interface SaveUploadResult {
   rejected: RejectedFile[];
 }
 
-/**
- * Validates, compresses, and stores uploaded images. Validation checks
- * the ACTUAL file bytes (not just the extension or the browser-reported
- * mime type) so a renamed executable can't sneak through as a ".jpg".
- */
 export async function saveUploadedPhotos(
   files: File[],
   meta: { caption: string; uploaderName: string; uploaderGuestId: string | null }
@@ -76,7 +67,6 @@ export async function saveUploadedPhotos(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Sniff the real file type from the bytes themselves.
     const detected = await fileTypeFromBuffer(buffer);
     if (!detected || !UPLOAD_LIMITS.allowedMimeTypes.has(detected.mime)) {
       rejected.push({ name: file.name, reason: "Not a supported image file." });
@@ -85,7 +75,7 @@ export async function saveUploadedPhotos(
 
     let pipeline;
     try {
-      pipeline = sharp(buffer, { failOn: "error" }).rotate(); // auto-orient
+      pipeline = sharp(buffer, { failOn: "error" }).rotate();
       const probe = await pipeline.metadata();
       if (!probe.width || !probe.height) throw new Error("no dimensions");
     } catch {
@@ -104,7 +94,26 @@ export async function saveUploadedPhotos(
     await fs.writeFile(path.join(FULL_DIR, filename), fullBuffer);
     await fs.writeFile(path.join(THUMB_DIR, thumbFilename), thumbBuffer);
 
-    const photo: Photo = {
+    const createdAt = new Date().toISOString();
+    
+    await pool.query(
+      `INSERT INTO photos (id, filename, thumb_filename, caption, uploader_name, uploader_guest_id, width, height, size_bytes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        id,
+        filename,
+        thumbFilename,
+        meta.caption.slice(0, 280),
+        meta.uploaderName ? meta.uploaderName.slice(0, 60) : null,
+        meta.uploaderGuestId,
+        finalMeta.width ?? 0,
+        finalMeta.height ?? 0,
+        fullBuffer.byteLength,
+        createdAt,
+      ]
+    );
+
+    saved.push({
       id,
       filename,
       thumbFilename,
@@ -114,13 +123,8 @@ export async function saveUploadedPhotos(
       width: finalMeta.width ?? 0,
       height: finalMeta.height ?? 0,
       sizeBytes: fullBuffer.byteLength,
-      createdAt: new Date().toISOString(),
-    };
-    saved.push(photo);
-  }
-
-  if (saved.length) {
-    await updateJson<Photo[]>(FILE, [], (all) => [...all, ...saved]);
+      createdAt,
+    });
   }
 
   return { saved, rejected };
