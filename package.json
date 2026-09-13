@@ -8,15 +8,16 @@
     "start": "next start",
     "lint": "next lint"
   },
-  "dependencies": {
-    "file-type": "^22.0.2",
-    "framer-motion": "^13.2.0",
-    "nanoid": "^6.0.1",
-    "next": "14.2.35",
-    "react": "^18",
-    "react-dom": "^18",
-    "sharp": "^0.35.4"
-  },
+"dependencies": {
+  "file-type": "^22.0.2",
+  "framer-motion": "^13.2.0",
+  "nanoid": "^6.0.1",
+  "next": "14.2.35",
+  "pg": "^8.11.3",
+  "react": "^18",
+  "react-dom": "^18",
+  "sharp": "^0.35.4"
+}
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
