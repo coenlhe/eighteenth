@@ -49,12 +49,12 @@ export async function deleteRsvp(guestId: string): Promise<boolean> {
 
 export function toCsv(rsvps: Rsvp[]): string {
   const headers = ["Guest ID", "Name", "Status", "Notes", "Created At"];
-  const rows = rsvps.map((r) => [
+  const rows = rsvps.map((r: any) => [
     r.guestId,
     `"${(r.name || "").replace(/"/g, '""')}"`,
     r.status,
     `"${(r.notes || "").replace(/"/g, '""')}"`,
-    r.createdAt,
+    r.createdAt || "",
   ]);
   return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 }
